@@ -26,7 +26,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         push: true
-        tags: kenshin579/go-server:${{ github.sha }} , kenshin579/go-server:latest
+        tags: kenshin579/hello-world-server:${{ github.sha }} , kenshin579/hello-world-server:latest
 
   update:
     name: Update Helm Manifests

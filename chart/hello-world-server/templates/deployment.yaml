@@ -10,7 +10,7 @@ spec:
   template:
     metadata:
       labels:
-        app: go-server
+        app: hello-world-server
     spec:
       containers:
         - name: hello-world-server

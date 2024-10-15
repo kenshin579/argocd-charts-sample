@@ -48,7 +48,7 @@ This is a sample project to demonstrate GitOps with ArgoCD.
     ```
     This is supposed to be a one time use password and it is [recommended](https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli) you change this.
 
-1. Click New App from the Argo CD UI and click edit as YAML and copy paste the config in `/apps/go-server-prod.yaml` and click create. And then click sync.
+1. Click New App from the Argo CD UI and click edit as YAML and copy paste the config in `/apps/hello-world-server-prod.yaml` and click create. And then click sync.
 
     Now we are at the stage when if you change the tag in `chart/values.yaml` and commit and push, Argo CD will detect that its out of sync and you can click sync from the UI to sync it.
 
