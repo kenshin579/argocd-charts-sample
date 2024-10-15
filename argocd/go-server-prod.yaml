@@ -7,8 +7,8 @@ spec:
     name: 'in-cluster'
     namespace: 'prod'
   source:
-    path: 'chart'
-    repoURL: 'https://github.com/kenshin579/gitops-sample'
+    path: 'chart/hello-world-server'
+    repoURL: 'https://github.com/kenshin579/argocd-charts-sample'
     targetRevision: HEAD
     helm:
       valueFiles:
