@@ -1,0 +1,65 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: presync-job
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  template:
+    spec:
+      containers:
+        - name: presync-job
+          image: ubuntu
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Pre Sync Job"
+      restartPolicy: Never
+  backoffLimit: 2
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: postsync-job
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  template:
+    spec:
+      containers:
+        - name: postsync-job
+          image: ubuntu
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Post Sync Job"
+      restartPolicy: Never
+  backoffLimit: 2
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: syncfail-job
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      containers:
+        - name: syncfail-job
+          image: curlimages/curl
+          command:
+            - "curl"
+            - "-X"
+            - "POST"
+            - "-H"
+            - "Content-Type: application/json"
+            - "-d"
+            - "payload={\"status\": \"Failed\"}"
+            - "http://echo-server:8080/echo"
+      restartPolicy: Never
+  backoffLimit: 2
