@@ -17,6 +17,6 @@ spec:
             - "POST"
             - "--data-urlencode"
             - "payload={\"channel\": \"#somechannel\", \"username\": \"hello\", \"text\": \"App Sync succeeded\", \"icon_emoji\": \":ghost:\"}"
-            - "http://echo-server/echo"
+            - "http://echo-server:8080/echo"
       restartPolicy: Never
   backoffLimit: 2
