@@ -1,6 +1,6 @@
 REGISTRY 	:= kenshin579
 APP    		:= hello-world-server
-IMAGE       := $(REGISTRY)/$(APP):v0.1
+IMAGE       := $(REGISTRY)/$(APP):v0.2
 
 .PHONY: docker-build
 docker-build:
