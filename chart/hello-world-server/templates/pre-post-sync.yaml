@@ -8,7 +8,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
-  ttlSecondsAfterFinished: 600
+  ttlSecondsAfterFinished: 100
   template:
     spec:
       containers:
