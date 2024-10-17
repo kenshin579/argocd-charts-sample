@@ -11,7 +11,7 @@ spec:
   template:
     spec:
       containers:
-        - name: presync-job
+        - name: presync-job1
           image: ubuntu
           command:
             - /bin/bash
@@ -24,7 +24,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  generateName: presync-job1
+  generateName: presync-job2
   annotations:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/sync-wave: "2"
@@ -33,7 +33,7 @@ spec:
   template:
     spec:
       containers:
-        - name: presync-job
+        - name: presync-job2
           image: ubuntu
           command:
             - /bin/bash
