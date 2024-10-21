@@ -5,10 +5,8 @@ metadata:
   generateName: presync-job1
   annotations:
     argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/sync-wave: "1"
 {{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
 spec:
-  ttlSecondsAfterFinished: 600
   template:
     spec:
       containers:
@@ -18,7 +16,7 @@ spec:
             - /bin/bash
             - -c
             - |
-              echo "Pre Sync Job - Failed"; exit 1
+              echo "Pre Sync Job"
       restartPolicy: Never
   backoffLimit: 2
 ---
@@ -31,7 +29,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 {{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
 spec:
-{{/*  ttlSecondsAfterFinished: 100*/}}
+  ttlSecondsAfterFinished: 100
   template:
     spec:
       containers:
@@ -53,7 +51,6 @@ metadata:
     argocd.argoproj.io/hook: PostSync
 {{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
 spec:
-{{/*  ttlSecondsAfterFinished: 100*/}}
   template:
     spec:
       containers:
@@ -75,7 +72,6 @@ metadata:
     argocd.argoproj.io/hook: SyncFail
 {{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
 spec:
-{{/*  ttlSecondsAfterFinished: 100*/}}
   template:
     spec:
       containers:
