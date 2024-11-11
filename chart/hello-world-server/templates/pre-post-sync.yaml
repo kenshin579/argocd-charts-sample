@@ -1,0 +1,148 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: presync-job1
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+{{/*  ttlSecondsAfterFinished: 300*/}}
+  backoffLimit: 2
+  template:
+    spec:
+      volumes:
+        - name: secret-volume
+          secret:
+            secretName: hello-world-server-secret
+        - name: shared-volume
+          emptyDir: {}
+      initContainers:
+        - name: init-auth-key
+          image: mikefarah/yq:4
+          command:
+            - sh
+            - -c
+            - |
+              # Extract data.auth_key from common_secret.yaml
+              # AUTH_KEY=$(grep -A1 "data:" /opt/secret/common_secret.yaml | grep "auth_key" | awk '{print $2}' | tr -d '"')
+              AUTH_KEY=$(yq ea '.test.data.auth_key' /opt/secret/common_secret.yaml)
+              echo "AUTH_KEY=$AUTH_KEY" > /opt/shared/auth-key.env
+              cat /opt/shared/auth-key.env
+          volumeMounts:
+            - name: secret-volume
+              mountPath: /opt/secret
+            - name: shared-volume
+              mountPath: /opt/shared
+      containers:
+        - name: presync-job1
+          image: ubuntu
+          volumeMounts:
+            - name: shared-volume
+              mountPath: /opt/shared
+              readOnly: true
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Pre Sync Job"
+              # source /opt/shared/auth-key.env
+              AUTH_KEY=$(cat /opt/shared/auth-key.env | cut -d '=' -f2)
+              echo "AUTH_KEY: $AUTH_KEY"
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: presync-job2
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "2"
+{{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
+spec:
+{{/*  ttlSecondsAfterFinished: 300*/}}
+  template:
+    spec:
+      containers:
+        - name: presync-job2
+          image: ubuntu
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Pre Sync Job 2"
+      restartPolicy: Never
+  backoffLimit: 2
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: presync-print-env
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "3"
+{{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
+spec:
+{{/*  ttlSecondsAfterFinished: 300*/}}
+  template:
+    spec:
+      containers:
+        - name: presync-print-env
+          image: kenshin579/command-env:v0.1
+          env:
+            - name: FRANK_ENV1
+              value: "env1"
+            - name: FRANK_ENV2
+              value: "env2"
+          command:
+            - /app/main
+      restartPolicy: Never
+  backoffLimit: 2
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: postsync-job
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+{{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
+spec:
+{{/*  ttlSecondsAfterFinished: 300*/}}
+  template:
+    spec:
+      containers:
+        - name: postsync-job
+          image: ubuntu
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Post Sync Job"
+      restartPolicy: Never
+  backoffLimit: 2
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: syncfail-job
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+{{/*    argocd.argoproj.io/hook-delete-policy: HookSucceeded*/}}
+spec:
+{{/*  ttlSecondsAfterFinished: 300*/}}
+  template:
+    spec:
+      containers:
+        - name: syncfail-job
+          image: curlimages/curl
+          command:
+            - "curl"
+            - "-X"
+            - "POST"
+            - "-H"
+            - "Content-Type: application/json"
+            - "-d"
+            - "payload={\"status\": \"Failed\"}"
+            - "http://echo-server:8080/echo"
+      restartPolicy: Never
+  backoffLimit: 2
