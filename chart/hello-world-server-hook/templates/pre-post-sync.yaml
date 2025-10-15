@@ -36,7 +36,7 @@ spec:
               mountPath: /opt/shared
       containers:
         - name: presync-job1
-          image: alpine:3.18
+          image: busybox:1.36
           volumeMounts:
             - name: shared-volume
               mountPath: /opt/shared
@@ -65,7 +65,7 @@ spec:
     spec:
       containers:
         - name: presync-job2
-          image: alpine:3.18
+          image: busybox:1.36
           command:
             - /bin/sh
             - -c
@@ -112,7 +112,7 @@ spec:
     spec:
       containers:
         - name: postsync-job
-          image: alpine:3.18
+          image: busybox:1.36
           command:
             - /bin/sh
             - -c
