@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hello-world-server
+  name: hello-world-server-hook
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hello-world-server # Add this label
+      app: hello-world-server-hook
   template:
     metadata:
       labels:
-        app: hello-world-server
+        app: hello-world-server-hook
     spec:
       containers:
-        - name: hello-world-server
+        - name: hello-world-server-hook
           image: "{{ .Values.image.name_tag }}" # Use the image name and tag from values.yaml
           ports:
             - containerPort: 8080
