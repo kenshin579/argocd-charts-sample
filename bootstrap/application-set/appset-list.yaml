@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: chart-applications-list
+  namespace: argocd
+spec:
+  generators:
+    # List Generator - 명시적으로 application 목록을 정의
+    - list:
+        elements:
+          - name: echo-server
+            path: chart/echo-server
+            namespace: argocd-test
+          - name: hello-world-server
+            path: chart/hello-world-server
+            namespace: argocd-test
+          - name: hello-world-server-hook
+            path: chart/hello-world-server-hook
+            namespace: argocd-test
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
