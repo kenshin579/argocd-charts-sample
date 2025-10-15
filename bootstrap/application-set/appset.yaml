@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: chart-applications
+  namespace: argocd
+spec:
+  generators:
+    # Git Generator - chart 폴더의 각 디렉토리를 자동으로 탐지
+    - git:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        revision: HEAD
+        directories:
+          - path: chart/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd-test
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+

@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: chart-applications-matrix
+  namespace: argocd
+spec:
+  generators:
+    # Matrix Generator - 여러 환경에 동일한 애플리케이션 배포
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/kenshin579/argocd-charts-sample
+              revision: HEAD
+              directories:
+                - path: chart/*
+          - list:
+              elements:
+                - env: dev
+                  namespace: argocd-dev
+                  replicas: "1"
+                - env: staging
+                  namespace: argocd-staging
+                  replicas: "2"
+                - env: prod
+                  namespace: argocd-prod
+                  replicas: "3"
+  template:
+    metadata:
+      name: '{{path.basename}}-{{env}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+          parameters:
+            - name: replicaCount
+              value: '{{replicas}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
