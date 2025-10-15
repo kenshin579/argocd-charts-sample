@@ -36,13 +36,13 @@ spec:
               mountPath: /opt/shared
       containers:
         - name: presync-job1
-          image: ubuntu
+          image: alpine:3.18
           volumeMounts:
             - name: shared-volume
               mountPath: /opt/shared
               readOnly: true
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               echo "Pre Sync Job"
@@ -65,9 +65,9 @@ spec:
     spec:
       containers:
         - name: presync-job2
-          image: ubuntu
+          image: alpine:3.18
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               echo "Pre Sync Job 2"
@@ -112,9 +112,9 @@ spec:
     spec:
       containers:
         - name: postsync-job
-          image: ubuntu
+          image: alpine:3.18
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               echo "Post Sync Job"
