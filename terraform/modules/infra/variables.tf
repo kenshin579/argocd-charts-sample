@@ -5,8 +5,8 @@ variable "argocd_namespace" {
 }
 
 # argocd 암호는 argocd 명령어로 생성한다
-# argocd account bcrypt --password 'argopassword'
+# argocd account bcrypt --password 'password'
 variable "argocd_password" {
   type    = string
-  default = "$2a$10$sfeCiugwvk5UmCW41AwnM.OOwUFgsLZWY709BrrCnlGtAKhtEn43"
+  default = "$2a$10$QkJXsQ9FvKBypo3KemwlDuUpj0q8Dr0qMHH4Kbvn3W5hfBIJf2gOy"
 }
