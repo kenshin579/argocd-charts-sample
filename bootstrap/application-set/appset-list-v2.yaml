@@ -12,8 +12,8 @@ spec:
           - name: echo-server
             path: chart/echo-server
             namespace: argocd-test
-          - name: hello-world-server-hook
-            path: chart/hello-world-server-hook
+          - name: hello-world-server
+            path: chart/hello-world-server
             namespace: argocd-test
   template:
     metadata:
@@ -48,8 +48,8 @@ spec:
   generators:
     - list:
         elements:
-          - name: hello-world-server
-            path: chart/hello-world-server
+          - name: hello-world-server-hook
+            path: chart/hello-world-server-hook
             namespace: argocd-test
   template:
     metadata:
