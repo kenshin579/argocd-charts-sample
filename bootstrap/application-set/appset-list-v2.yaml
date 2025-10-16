@@ -38,7 +38,8 @@ spec:
           - CreateNamespace=true
 
 ---
-# ApplicationSet 2: 복수 values 파일을 사용하는 hello-world-server
+# ApplicationSet 2: 복수 values 파일을 사용하는 경우
+# - 하나의 ApplicationSet으로 처리하기가 어려워서 일단 별도로 생성을 해둠
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
