@@ -1,0 +1,75 @@
+---
+# ApplicationSet 1: 단일 values.yaml 파일을 사용하는 애플리케이션들
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: chart-applications-single-values
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: echo-server
+            path: chart/echo-server
+            namespace: argocd-test
+          - name: hello-world-server-hook
+            path: chart/hello-world-server-hook
+            namespace: argocd-test
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# ApplicationSet 2: 복수 values 파일을 사용하는 hello-world-server
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: chart-applications-multi-values
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: hello-world-server
+            path: chart/hello-world-server
+            namespace: argocd-test
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../environments/values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

@@ -1,0 +1,15 @@
+# Environment specific values for hello-world-server
+# This file overrides the default values.yaml
+
+replicaCount: 3
+
+# You can add more environment-specific configurations here
+# For example:
+# resources:
+#   limits:
+#     cpu: 200m
+#     memory: 256Mi
+# env:
+#   - name: ENVIRONMENT
+#     value: "beta"
+
