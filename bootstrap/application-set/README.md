@@ -37,7 +37,24 @@ kubectl apply -f bootstrap/application-set/appset-list.yaml
 - Application별로 다른 namespace 사용
 - Application별로 다른 설정 적용
 
-### 3. appset-matrix.yaml (Matrix Generator)
+### 3. appset-list-v2.yaml (List Generator - 분리형)
+**Values 파일 구성별 분리 방식** - 단일/복수 values 파일 사용 애플리케이션을 별도의 ApplicationSet으로 관리
+
+```bash
+kubectl apply -f bootstrap/application-set/appset-list-v2.yaml
+```
+
+**장점:**
+- values 파일 구성에 따라 ApplicationSet을 명확하게 분리
+- 단일 values.yaml 사용: `echo-server`, `hello-world-server-hook`
+- 복수 values 파일 사용: `hello-world-server` (values.yaml + environments/values.yaml)
+- 각 그룹별로 독립적인 관리 가능
+
+**구성:**
+- **ApplicationSet 1**: 단일 values 파일 사용 애플리케이션
+- **ApplicationSet 2**: 복수 values 파일 사용 애플리케이션 (환경별 설정 병합)
+
+### 4. appset-matrix.yaml (Matrix Generator)
 **다중 환경 배포 방식** - 여러 환경(dev, staging, prod)에 동일한 애플리케이션 배포
 
 ```bash
@@ -80,6 +97,7 @@ ApplicationSet은 다양한 Generator를 제공합니다:
 
 - **간단한 프로젝트**: `appset.yaml` (Git Generator)
 - **세밀한 제어 필요**: `appset-list.yaml` (List Generator)
+- **Values 파일 구성이 다른 경우**: `appset-list-v2.yaml` (List Generator - 분리형)
 - **다중 환경**: `appset-matrix.yaml` (Matrix Generator)
 - **초보자**: App of Apps 패턴부터 시작
 
