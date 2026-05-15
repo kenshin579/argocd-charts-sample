@@ -1,0 +1,6 @@
+apiVersion: v2
+name: webhook-receiver
+description: HTTP webhook receiver that logs incoming requests to stdout (mendhak/http-https-echo)
+type: application
+version: 0.1.0
+appVersion: "37"
