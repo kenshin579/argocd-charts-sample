@@ -64,3 +64,48 @@ https://argocd-server.argocd.svc.cluster.local/
 kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.admin\.password}" | base64 -d
 ```
 
+## ArgoCD Notifications 설정 (선택)
+
+`argocd-noti-test` namespace의 모든 Application에서 발생하는 **OutOfSync / Sync Failed / Health Degraded** 이벤트를 클러스터 내부 webhook receiver로 알림 받는 로컬 테스트 환경.
+
+### 구성
+
+| 컴포넌트 | namespace | 역할 |
+|---|---|---|
+| `webhook-receiver` (Deployment + Service) | `argocd-noti-receiver` | webhook을 받아 stdout JSON 출력 |
+| `argocd-notifications-cm` / `-secret` | `argocd` | trigger/template/service/subscription 설정 |
+| `hello-world-server` (테스트 대상) | `argocd-noti-test` | 알림 발생 대상 (automated 없음 — manual sync) |
+
+### 설치
+
+```bash
+# 알림 시스템 부트스트랩 (Application 2개를 한 번에)
+kubectl apply -f bootstrap/notifications.yaml
+
+# 알림 테스트 대상 ApplicationSet
+kubectl apply -f bootstrap/application-set/appset-noti-test.yaml
+```
+
+### 알림 수신 확인
+
+별도 터미널에서 로그 tail:
+```bash
+kubectl logs -f deployment/webhook-receiver -n argocd-noti-receiver
+```
+
+drift 유발 예시:
+```bash
+# Cluster drift
+kubectl scale deployment hello-world-server -n argocd-noti-test --replicas=3
+# ~60초 내 OutOfSync 알림 JSON이 webhook-receiver 로그에 출력됨
+```
+
+### Cleanup
+
+```bash
+kubectl delete -f bootstrap/notifications.yaml
+kubectl delete -f bootstrap/application-set/appset-noti-test.yaml
+```
+
+자세한 설계는 `docs/superpowers/specs/2026-05-15-argocd-notifications-outofsync-design.md` 참조.
+
