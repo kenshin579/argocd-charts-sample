@@ -117,28 +117,29 @@ chart/webhook-receiver/
 
 확인 방법: `kubectl logs -f deployment/webhook-receiver -n argocd-noti-receiver`
 
-### 5.3 `bootstrap/notifications/` (신규)
+### 5.3 `bootstrap/notifications.yaml` (신규, multi-doc YAML)
 
-위 2개 Helm chart를 ArgoCD가 sync하도록 Application 리소스 정의.
+위 2개 Helm chart를 ArgoCD가 sync하도록 두 Application 리소스를 **하나의 multi-doc YAML 파일**에 정의 (`---`로 구분). 알림 시스템 전체를 하나의 파일로 부트스트랩.
 
 **구조:**
 ```
-bootstrap/notifications/
-├── app-argocd-notifications-config.yaml   # → chart/argocd-notifications-config sync
-└── app-webhook-receiver.yaml              # → chart/webhook-receiver sync
+bootstrap/
+└── notifications.yaml      # 2개의 Application 리소스 (webhook-receiver + argocd-notifications-config)
 ```
 
-**`app-argocd-notifications-config.yaml`:**
+**파일 내 첫 번째 Application — `webhook-receiver`:**
+- destination namespace: `argocd-noti-receiver`
+- syncPolicy: `automated` (prune + selfHeal 모두 true)
+- syncOptions:
+  - `CreateNamespace=true` — `argocd-noti-receiver` namespace 자동 생성
+
+**파일 내 두 번째 Application — `argocd-notifications-config`:**
 - destination namespace: `argocd`
 - syncPolicy: `automated` (prune + selfHeal 모두 true) — 알림 설정 변경 즉시 반영
 - syncOptions:
   - `ServerSideApply=true` — argo-cd Helm chart가 이미 만든 `argocd-notifications-cm` 및 `argocd-notifications-secret`의 ownership을 field-level merge로 인수
 
-**`app-webhook-receiver.yaml`:**
-- destination namespace: `argocd-noti-receiver`
-- syncPolicy: `automated` (prune + selfHeal 모두 true)
-- syncOptions:
-  - `CreateNamespace=true` — `argocd-noti-receiver` namespace 자동 생성
+파일 내 순서는 webhook-receiver를 먼저 두어 가독성상 의존성 흐름(수신 서버 → 알림 설정)을 명시. 실제 적용 순서는 ArgoCD가 처리.
 
 ### 5.4 `bootstrap/application-set/appset-noti-test.yaml` (신규)
 
@@ -165,17 +166,14 @@ bootstrap/notifications/
 ## 6. 설치 순서 및 의존성
 
 ```bash
-# 1) webhook-receiver 먼저 (notifications-controller가 처음 알림 발송 시 destination이 존재하도록)
-kubectl apply -f bootstrap/notifications/app-webhook-receiver.yaml
+# 1) 알림 시스템 부트스트랩 (webhook-receiver + notifications-config 한 번에)
+kubectl apply -f bootstrap/notifications.yaml
 
-# 2) notifications 설정
-kubectl apply -f bootstrap/notifications/app-argocd-notifications-config.yaml
-
-# 3) 알림 테스트 대상 ApplicationSet
+# 2) 알림 테스트 대상 ApplicationSet
 kubectl apply -f bootstrap/application-set/appset-noti-test.yaml
 ```
 
-webhook-receiver를 먼저 띄우는 이유: notifications-config 활성 시 webhook URL이 미리 존재하여 첫 알림 실패 방지.
+`notifications.yaml`은 multi-doc YAML이라 한 번의 `kubectl apply`로 두 Application이 생성된다. ArgoCD가 두 Application을 거의 동시에 sync하지만, 초기 1~2회 알림은 webhook-receiver Pod 기동 전에 발송될 수 있다. 그 경우 controller가 error 로그만 남기고 다음 cycle/이벤트에서 정상 동작 (이 동작이 `oncePer` 정책과 함께 어떻게 보이는지가 시나리오 검증의 일부).
 
 ## 7. 알림 발생 흐름 (trigger, template, payload)
 
@@ -462,7 +460,7 @@ kubectl scale deployment echo-server -n argocd-test --replicas=3
 ## 10. Rollback / Cleanup
 
 ```bash
-kubectl delete -f bootstrap/notifications/
+kubectl delete -f bootstrap/notifications.yaml
 kubectl delete -f bootstrap/application-set/appset-noti-test.yaml
 
 # 자동으로 정리됨:
@@ -480,6 +478,7 @@ kubectl delete -f bootstrap/application-set/appset-noti-test.yaml
 | Helm chart로 알림 설정 분리 (Terraform values에 추가 X) | production에서 ArgoCD 재배포 어려움 → 알림 설정만 GitOps로 분리 |
 | Default subscription + trigger 내 namespace 필터 | 운영팀 중앙 관리 패턴. ApplicationSet마다 annotation 부여하지 않아도 됨 |
 | webhook-receiver를 별도 namespace로 격리 | 자기 자신이 알림 대상이 되는 것 방지 + 책임 분리 |
+| bootstrap을 multi-doc YAML 1개 파일로 (`bootstrap/notifications.yaml`) | 알림 시스템 부트스트랩이 한 단위. chart는 책임별로 분리 유지 (`webhook-receiver`, `argocd-notifications-config`) → bootstrap 단순화와 chart 책임 분리를 모두 확보 |
 | 3개 trigger 함께 (OutOfSync + Sync Failed + Health Degraded) | OutOfSync로 잡지 못하는 영역(런타임 헬스 저하, manual sync 실패) 커버. 운영 시나리오에 가까움 |
 | trigger마다 별도 template (강조 정보 다름) | 학습 측면: ArgoCD template 시스템 깊이 이해. payload 분석 시 어떤 정보가 의미 있는지 명확 |
 | `oncePer` 정책 trigger별 다르게 | OutOfSync는 revision, Sync Failed는 startedAt, Health Degraded는 상태 전이 (ArgoCD 기본) |
