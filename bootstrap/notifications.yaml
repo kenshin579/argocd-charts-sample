@@ -1,0 +1,53 @@
+# 알림 시스템 부트스트랩 — 2개의 Application을 한 파일에 정의
+# 1) webhook-receiver: HTTP webhook을 받아 stdout으로 출력 (argocd-noti-receiver ns)
+# 2) argocd-notifications-config: trigger/template/service/subscription 설정 (argocd ns)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: webhook-receiver
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kenshin579/argocd-charts-sample
+    targetRevision: HEAD
+    path: chart/webhook-receiver
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-noti-receiver
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-notifications-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kenshin579/argocd-charts-sample
+    targetRevision: HEAD
+    path: chart/argocd-notifications-config
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # argo-cd Helm chart가 이미 만든 argocd-notifications-cm/secret의 ownership을
+      # field-level merge로 인수
+      - ServerSideApply=true
