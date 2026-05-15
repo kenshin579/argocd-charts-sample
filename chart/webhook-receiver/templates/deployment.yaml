@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-receiver
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: webhook-receiver
+  template:
+    metadata:
+      labels:
+        app: webhook-receiver
+    spec:
+      containers:
+        - name: webhook-receiver
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          # mendhak/http-https-echo 환경변수
+          # - HTTP_PORT: 컨테이너 listen 포트 (Service targetPort와 일치)
+          # - LOG_WITHOUT_NEWLINE=false: 페이로드 사이 개행 유지 → kubectl logs 가독성
+          env:
+            - name: HTTP_PORT
+              value: "8080"
+            - name: LOG_WITHOUT_NEWLINE
+              value: "false"
+          ports:
+            - containerPort: 8080

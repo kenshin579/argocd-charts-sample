@@ -1,0 +1,36 @@
+# 알림 테스트 대상 — argocd-noti-test namespace로 hello-world-server를 sync.
+# 기존 appset-list.yaml과의 차이:
+#   - destination namespace: argocd-noti-test (격리)
+#   - syncPolicy.automated 제거 (manual sync, selfHeal 없음)
+#   - 대상 차트 1개로 단순화
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: noti-test-applications
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: hello-world-server
+            path: chart/hello-world-server
+            namespace: argocd-noti-test
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/kenshin579/argocd-charts-sample
+        targetRevision: HEAD
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      # syncPolicy.automated 없음 — manual sync (Git/Cluster drift 모두 의미 있게 발생)
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true

@@ -1,0 +1,8 @@
+# webhook receiver의 cluster-internal URL
+webhookUrl: http://webhook-receiver.argocd-noti-receiver.svc.cluster.local
+
+# 알림 trigger에 적용할 destination namespace 필터
+targetNamespace: argocd-noti-test
+
+# template body에 포함되는 ArgoCD UI base URL
+argocdUrl: https://argocd-server.argocd.svc.cluster.local
