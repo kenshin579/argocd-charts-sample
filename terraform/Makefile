@@ -36,7 +36,7 @@ tf-destroy:
 	@terraform plan -destroy
 	@terraform destroy -auto-approve
 
-# 저장된 admin 비밀번호(bcrypt 해시)를 출력한다. 로그인 평문은 argocd_password 변수에 설정한 값이다.
+# 저장된 admin 비밀번호(bcrypt 해시)를 출력한다. 로그인 평문은 이 해시를 만들 때 argocd account bcrypt에 넘긴 값이다.
 .PHONY: view-argocd-password
 view-argocd-password:
 	@kubectl -n argocd get secret argocd-secret -o jsonpath="{.data.admin\.password}" | base64 -d; echo

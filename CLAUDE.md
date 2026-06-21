@@ -42,7 +42,7 @@ make argocd-port-forward
 
 # UI 접속: https://localhost:8080 (자체 서명 인증서 경고는 무시)
 
-# 저장된 admin 비밀번호(bcrypt 해시) 확인 — 로그인 평문은 argocd_password 변수 값
+# 저장된 admin 비밀번호(bcrypt 해시) 확인 — 로그인 평문은 이 해시를 만들 때 argocd account bcrypt에 넘긴 값 (변수 값은 해시)
 make view-argocd-password
 ```
 

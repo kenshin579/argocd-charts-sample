@@ -54,8 +54,8 @@ make argocd-port-forward
 
 #### Admin 비밀번호
 
-로그인 비밀번호는 Terraform 변수 `argocd_password`(`terraform/modules/infra/variables.tf`)에 설정한 평문입니다.
-이 값은 `argocd account bcrypt --password '<평문>'`으로 생성한 bcrypt 해시로 저장되므로, 클러스터에서 평문을 되돌려 읽을 수는 없습니다.
+Terraform 변수 `argocd_password`(`terraform/modules/infra/variables.tf`)에는 `argocd account bcrypt --password '<평문>'`으로 생성한 bcrypt 해시를 저장합니다.
+로그인 시에는 해시를 만들 때 사용한 `<평문>`을 입력하며, 저장된 해시에서 평문을 되돌려 읽을 수는 없습니다.
 
 저장된 해시 자체를 확인하려면:
 
