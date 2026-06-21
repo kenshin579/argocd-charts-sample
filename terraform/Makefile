@@ -16,12 +16,12 @@ all: kind-create tf-init tf-infra
 
 .PHONY: tf-init
 tf-init:
-	@echo "Initializing Terraform for Docker Desktop cluster..."
+	@echo "Initializing Terraform for kind cluster..."
 	@terraform init -upgrade
 
 .PHONY: tf-infra
 tf-infra: tf-init
-	@echo "Setting up infrastructure on Docker Desktop cluster..."
+	@echo "Setting up infrastructure on kind cluster..."
 	@terraform plan
 	@terraform apply -auto-approve
 
