@@ -1,21 +1,27 @@
 NAMESPACE := argocd-test
+CLUSTER_NAME := argo-cluster
 
-# 명령어를 자동으로 감지하는 함수
-define KUBEVPN_CMD
-$(shell if which kubevpn >/dev/null 2>&1; then echo "kubevpn"; else echo "kubectl kubevpn"; fi)
-endef
+.PHONY: kind-create
+kind-create:
+	@echo "Creating kind cluster ($(CLUSTER_NAME)) if not exists..."
+	@kind get clusters | grep -q '^$(CLUSTER_NAME)$$' || kind create cluster --config kind-config.yaml
+
+.PHONY: kind-delete
+kind-delete:
+	@echo "Deleting kind cluster ($(CLUSTER_NAME))..."
+	@kind delete cluster --name $(CLUSTER_NAME)
 
 .PHONY: all
-all: tf-init tf-infra
+all: kind-create tf-init tf-infra
 
 .PHONY: tf-init
 tf-init:
-	@echo "Initializing Terraform for Docker Desktop cluster..."
+	@echo "Initializing Terraform for kind cluster..."
 	@terraform init -upgrade
 
 .PHONY: tf-infra
 tf-infra: tf-init
-	@echo "Setting up infrastructure on Docker Desktop cluster..."
+	@echo "Setting up infrastructure on kind cluster..."
 	@terraform plan
 	@terraform apply -auto-approve
 
@@ -30,20 +36,18 @@ tf-destroy:
 	@terraform plan -destroy
 	@terraform destroy -auto-approve
 
-.PHONY: clean-kubevpn
-clean-kubevpn:
-	@echo "Cleaning up kubevpn..."
-	@sudo $(KUBEVPN_CMD) disconnect -n $(NAMESPACE) --all
-	@echo "\nkubevpn cleanup completed."
+# 저장된 admin 비밀번호(bcrypt 해시)를 출력한다. 로그인 평문은 이 해시를 만들 때 argocd account bcrypt에 넘긴 값이다.
+.PHONY: view-argocd-password
+view-argocd-password:
+	@kubectl -n argocd get secret argocd-secret -o jsonpath="{.data.admin\.password}" | base64 -d; echo
 
-.PHONY: setup-kubevpn
-setup-kubevpn:
-	@echo "Setting up kubevpn..."
-	@sudo $(KUBEVPN_CMD) connect -n $(NAMESPACE) --netstack gvisor
-	@echo "\nkubevpn setup completed."
+.PHONY: argocd-port-forward
+argocd-port-forward:
+	@echo "ArgoCD UI → https://localhost:8080 (Ctrl-C로 종료)"
+	@kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 .PHONY: tf-clean
-tf-clean: clean-kubevpn
+tf-clean:
 	@echo "Force cleaning Terraform state..."
 	@rm -rf .terraform/
 	@rm -f .terraform.lock.hcl

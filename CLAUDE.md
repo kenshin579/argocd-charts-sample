@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ArgoCD Charts Sample - ArgoCD와 Helm Chart를 사용한 GitOps 샘플 프로젝트. Docker Desktop Kubernetes에서 ArgoCD를 설치하고 ApplicationSet 패턴으로 애플리케이션을 관리한다.
+ArgoCD Charts Sample - ArgoCD와 Helm Chart를 사용한 GitOps 샘플 프로젝트. kind 클러스터(argo-cluster)에서 ArgoCD를 설치하고 ApplicationSet 패턴으로 애플리케이션을 관리한다.
 
 ## Commands
 
@@ -12,11 +12,13 @@ ArgoCD Charts Sample - ArgoCD와 Helm Chart를 사용한 GitOps 샘플 프로젝
 
 ```bash
 cd terraform
+make kind-create     # kind 클러스터(argo-cluster) 생성
 make tf-infra        # ArgoCD 설치 (init + plan + apply)
 make tf-init         # Terraform 초기화
 make tf-validate     # 설정 검증
 make tf-destroy      # ArgoCD 삭제
-make tf-clean        # Terraform state 및 kubevpn 정리
+make kind-delete     # kind 클러스터 삭제
+make tf-clean        # Terraform state 정리
 ```
 
 ### ApplicationSet 배포
@@ -35,13 +37,13 @@ kubectl apply -f bootstrap/application-set/appset-matrix.yaml -n argocd
 ### ArgoCD 접속
 
 ```bash
-# kubevpn 연결
-kubevpn connect
+# port-forward (별도 터미널에서 실행)
+make argocd-port-forward
 
-# UI 접속: https://argocd-server.argocd.svc.cluster.local/
+# UI 접속: https://localhost:8080 (자체 서명 인증서 경고는 무시)
 
-# Admin 비밀번호 확인
-kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.admin\.password}" | base64 -d
+# 저장된 admin 비밀번호(bcrypt 해시) 확인 — 로그인 평문은 이 해시를 만들 때 argocd account bcrypt에 넘긴 값 (변수 값은 해시)
+make view-argocd-password
 ```
 
 ### 리소스 확인

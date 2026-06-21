@@ -1,2 +1,3 @@
-# Docker Desktop 클러스터를 사용하므로 별도의 kubeconfig 출력이 필요하지 않습니다.
-# Docker Desktop의 kubeconfig는 기본적으로 ~/.kube/config에 설정되어 있습니다.
+# kind 클러스터(argo-cluster, context kind-argo-cluster)를 사용한다.
+# kubeconfig는 `kind create cluster` 시 ~/.kube/config에 자동 병합되므로
+# 별도의 kubeconfig 출력이 필요하지 않다.
