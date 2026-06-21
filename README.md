@@ -50,19 +50,13 @@ cd terraform
 make argocd-port-forward
 ```
 
-브라우저에서 `https://localhost:8080` 으로 접속합니다 (자체 서명 인증서 경고는 무시).
+브라우저에서 `https://localhost:8080` 으로 접속한 뒤 다음 정보로 로그인합니다 (자체 서명 인증서 경고는 무시):
 
-#### Admin 비밀번호
+- **Username:** `admin`
+- **Password:** `password`
 
-Terraform 변수 `argocd_password`(`terraform/modules/infra/variables.tf`)에는 `argocd account bcrypt --password '<평문>'`으로 생성한 bcrypt 해시를 저장합니다.
-로그인 시에는 해시를 만들 때 사용한 `<평문>`을 입력하며, 저장된 해시에서 평문을 되돌려 읽을 수는 없습니다.
-
-저장된 해시 자체를 확인하려면:
-
-```bash
-cd terraform
-make view-argocd-password
-```
+비밀번호는 Terraform 변수 `argocd_password`(`terraform/modules/infra/variables.tf`)에 bcrypt 해시로 저장되며, 위 평문 `password`가 그 해시에 대응합니다.
+비밀번호를 바꾸려면 `argocd account bcrypt --password '<새 평문>'`으로 새 해시를 만들어 기본값을 교체한 뒤 `make tf-infra`를 다시 적용합니다.
 
 ### 클러스터 삭제
 

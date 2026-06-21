@@ -40,10 +40,8 @@ kubectl apply -f bootstrap/application-set/appset-matrix.yaml -n argocd
 # port-forward (별도 터미널에서 실행)
 make argocd-port-forward
 
-# UI 접속: https://localhost:8080 (자체 서명 인증서 경고는 무시)
-
-# 저장된 admin 비밀번호(bcrypt 해시) 확인 — 로그인 평문은 이 해시를 만들 때 argocd account bcrypt에 넘긴 값 (변수 값은 해시)
-make view-argocd-password
+# UI 접속: https://localhost:8080 (admin / password, 자체 서명 인증서 경고는 무시)
+# 비밀번호는 argocd_password 변수에 bcrypt 해시로 저장 (평문 'password'에 대응)
 ```
 
 ### 리소스 확인
