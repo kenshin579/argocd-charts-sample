@@ -6,13 +6,16 @@ https://github.com/RinkiyaKeDad/gitops-sample
 
 ## ArgoCD 설치 및 설정
 
-### 1. Docker Desktop에서 Kubernetes 설정
+### 1. kind로 Kubernetes 클러스터 생성
 
-1. Docker Desktop을 실행합니다
-2. 설정(Settings) > Kubernetes로 이동합니다
-3. "Enable Kubernetes" 체크박스를 선택합니다
-4. "Apply & Restart" 버튼을 클릭하여 Kubernetes를 활성화합니다
-5. 설치가 완료되면 좌측 하단에 Kubernetes 상태가 "running"으로 표시됩니다
+GUI 없이 터미널에서 단일 노드 클러스터를 생성합니다 (`terraform/kind-config.yaml` 사용):
+
+```bash
+cd terraform
+make kind-create
+```
+
+생성되는 클러스터명은 `argo-cluster`이며, kubectl context는 `kind-argo-cluster`로 등록됩니다.
 
 ### 2. Terraform으로 ArgoCD 설치
 
@@ -40,28 +43,32 @@ kubectl apply -f bootstrap/application-set/appset-list.yaml -n argocd
 
 ### 4. ArgoCD UI 접속
 
-ArgoCD UI에 접속하려면 kubevpn을 사용합니다:
+`kubectl port-forward`로 로컬에서 접속합니다 (별도 터미널에서 실행):
 
 ```bash
-# Kubernetes context를 argocd로 변경
-kubectl config set-context --current --namespace=argocd
-
-# kubevpn 연결
-kubevpn connect
+cd terraform
+make argocd-port-forward
 ```
 
-kubevpn 연결 후 브라우저에서 다음 주소로 접속합니다:
+브라우저에서 `https://localhost:8080` 으로 접속합니다 (자체 서명 인증서 경고는 무시).
 
-```
-https://argocd-server.argocd.svc.cluster.local/
-```
+#### Admin 비밀번호
 
-#### Admin 비밀번호 확인
+로그인 비밀번호는 Terraform 변수 `argocd_password`(`terraform/modules/infra/variables.tf`)에 설정한 평문입니다.
+이 값은 `argocd account bcrypt --password '<평문>'`으로 생성한 bcrypt 해시로 저장되므로, 클러스터에서 평문을 되돌려 읽을 수는 없습니다.
 
-초기 admin 비밀번호는 다음 명령어로 확인할 수 있습니다:
+저장된 해시 자체를 확인하려면:
 
 ```bash
-kubectl get secret argocd-secret -n argocd -o jsonpath="{.data.admin\.password}" | base64 -d
+cd terraform
+make view-argocd-password
+```
+
+### 클러스터 삭제
+
+```bash
+cd terraform
+make kind-delete
 ```
 
 ## ArgoCD Notifications 설정 (선택)
