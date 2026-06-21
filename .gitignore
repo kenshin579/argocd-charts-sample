@@ -16,5 +16,8 @@
 
 .idea/
 
-.terraform*
-terraform*
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+*.tfvars
