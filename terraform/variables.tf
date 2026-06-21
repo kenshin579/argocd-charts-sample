@@ -8,3 +8,8 @@ variable "kubeconfig" {
   default = "~/.kube/config"
 }
 
+variable "kube_context" {
+  type    = string
+  default = "kind-argo-cluster"
+}
+
