@@ -6,8 +6,14 @@ image:
 # sync: keyring 을 받을 때까지 HTTP 서버를 띄우지 않는다 / async: HTTP 를 먼저 띄우고 백그라운드로 받는다
 loadMode: async
 
-# 설정 시크릿(API 토큰)의 출처. 2편은 sealed, 3편에서 vault(VSO)를 추가한다
+# 설정 시크릿(API 토큰)의 출처. sealed: SealedSecret / vault: Vault Secrets Operator(3편)
 secretSource: sealed
+
+vso:
+  address: http://vault.vault.svc:8200
+  role: vso-member-api
+  # KV 를 다시 읽는 주기. 값이 바뀌었을 때만 Secret 을 갱신하고 Deployment 를 재시작한다
+  refreshAfter: 30s
 
 vault:
   role: member-api
