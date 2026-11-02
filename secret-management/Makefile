@@ -2,8 +2,10 @@
 KCTX ?= kind-argo-cluster
 export KCTX
 KUBECTL := kubectl --context $(KCTX)
+KIND_CLUSTER ?= argo-cluster
+APP_IMAGE ?= member-api:0.1.0
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup
+.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -31,3 +33,8 @@ vault-status:
 
 vault-setup:
 	./scripts/vault-setup.sh
+
+## member-api 이미지를 빌드해 kind 노드에 넣는다 (latest 태그는 pull policy 가 Always 가 되므로 쓰지 않는다)
+app-image: check-context
+	docker build -t $(APP_IMAGE) app/member-api
+	kind load docker-image $(APP_IMAGE) --name $(KIND_CLUSTER)

@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/hashicorp/vault/api v1.23.0
+	github.com/hashicorp/vault/api/auth/kubernetes v0.12.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/vault v0.44.0
 )
