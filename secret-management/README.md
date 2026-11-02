@@ -9,16 +9,16 @@ kind + ArgoCD 위에 HashiCorp Vault를 운영과 비슷하게 구성하고(Raft
 
 ```mermaid
 flowchart LR
-    subgraph member-api namespace
+    subgraph ns_app [member-api namespace]
         JOB[init-dek Job - SA member-api-migration]
-        subgraph Pod member-api
+        subgraph pod_app [Pod member-api]
             APP[member-api]
             AGENT[vault-agent sidecar]
         end
         SEC[Secret member-api-config]
         PVC[(PVC members.json)]
     end
-    subgraph vault namespace
+    subgraph ns_vault [vault namespace]
         VAULT[vault-0 - Raft]
     end
     SS[SealedSecret] -->|sealed-secrets controller| SEC
