@@ -4,6 +4,8 @@ metadata:
   name: member-api
   labels:
     app: member-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   # RWO PVC 를 쓰므로 새 Pod 는 옛 Pod 가 내려간 뒤에 뜬다

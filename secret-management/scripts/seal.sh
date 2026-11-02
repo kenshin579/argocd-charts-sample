@@ -16,6 +16,9 @@ sealed="$(k -n member-api create secret generic member-api-config \
   --from-literal=api-token="$API_TOKEN" --dry-run=client -o yaml \
   | kubeseal --context "$KCTX" --format yaml)"
 
+# 앱(wave 1)보다 먼저 Secret 이 있도록 SealedSecret 을 wave -1 로 둔다
+sealed="$(sed 's|^metadata:$|metadata:\n  annotations:\n    argocd.argoproj.io/sync-wave: "-1"|' <<<"$sealed")"
+
 {
   echo '{{- if eq .Values.secretSource "sealed" }}'
   echo "$sealed"
