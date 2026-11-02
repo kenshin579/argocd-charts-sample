@@ -44,7 +44,7 @@ var DefaultConfig = Config{
 }
 
 // InitDEK 는 DEK 문서가 없을 때만 v1 을 만든다. 이미 있으면 아무것도 쓰지 않고 false 를 돌려준다.
-// PreSync Job 이 sync 마다 다시 돌거나 두 Job 이 겹쳐도, check-and-set(cas=0) 때문에 문서는 한 번만 쓰인다.
+// DEK 적재 Job 이 sync 마다 다시 돌거나 두 Job 이 겹쳐도, check-and-set(cas=0) 때문에 문서는 한 번만 쓰인다.
 func InitDEK(ctx context.Context, c *vaultapi.Client, cfg Config) (bool, error) {
 	secret, err := c.KVv2(cfg.KVMount).Get(ctx, cfg.KVPath)
 	switch {

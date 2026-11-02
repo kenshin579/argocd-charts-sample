@@ -1,7 +1,7 @@
 // member-api 는 회원 개인정보를 필드 단위로 암호화해 저장하는 데모 서비스다.
 //
 //	member-api serve     HTTP 서버. DEK 는 Pod 에 주입된 Vault Agent(proxy, 127.0.0.1:8200)를 거쳐 token 없이 받는다
-//	member-api init-dek  PreSync Job 용. ServiceAccount token 으로 Kubernetes auth 에 직접 로그인해 DEK v1 을 적재한다
+//	member-api init-dek  DEK 적재 Job 용(ArgoCD Sync hook). ServiceAccount token 으로 Kubernetes auth 에 직접 로그인해 DEK v1 을 적재한다
 package main
 
 import (

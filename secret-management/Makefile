@@ -4,6 +4,7 @@ export KCTX
 KUBECTL := kubectl --context $(KCTX)
 KIND_CLUSTER ?= argo-cluster
 APP_IMAGE ?= member-api:0.1.0
+REPO ?= https://github.com/kenshin579/argocd-charts-sample
 REVISION ?= HEAD
 MODE ?= async
 
@@ -56,9 +57,12 @@ app-image: check-context
 seal:
 	./scripts/seal.sh
 
-## member-api Application 적용. 개발 중에는 REVISION=<브랜치> 로 GitHub 의 그 브랜치를 보게 한다
+## member-api Application 적용. ArgoCD 는 GitHub 에서 chart 를 가져온다.
+## fork 해서 실습할 때는 make seal 결과를 commit·push 한 뒤 REPO=<fork URL> REVISION=<브랜치> 로 지정한다
 app-deploy: check-context
-	sed 's|targetRevision: HEAD|targetRevision: $(REVISION)|' bootstrap/member-api.yaml | $(KUBECTL) apply -n argocd -f -
+	sed -e 's|repoURL: https://github.com/kenshin579/argocd-charts-sample|repoURL: $(REPO)|' \
+	    -e 's|targetRevision: HEAD|targetRevision: $(REVISION)|' bootstrap/member-api.yaml \
+	  | $(KUBECTL) apply -n argocd -f -
 
 ## localhost:8081 → member-api Service(80)
 app-port-forward: check-context
@@ -69,12 +73,12 @@ load-mode: check-context
 	$(KUBECTL) -n argocd patch application member-api --type merge \
 	  -p '{"spec":{"source":{"helm":{"parameters":[{"name":"loadMode","value":"$(MODE)"}]}}}}'
 
-## member-api 를 지금 sync 한다(PreSync Job 이 다시 돈다). argocd CLI 없이 Application 에 operation 을 넣는다
+## member-api 를 지금 sync 한다(DEK 적재 Job 이 다시 돈다). argocd CLI 없이 Application 에 operation 을 넣는다
 app-sync: check-context
 	$(KUBECTL) -n argocd patch application member-api --type merge \
 	  -p '{"operation":{"initiatedBy":{"username":"make"},"sync":{}}}'
 
-## 가장 최근 PreSync(init-dek) Job 의 로그
+## 가장 최근 DEK 적재(init-dek) Job 의 로그
 init-dek-logs: check-context
 	@job=$$($(KUBECTL) -n member-api get jobs -l app.kubernetes.io/component=init-dek \
 	  --sort-by=.metadata.creationTimestamp -o name | tail -1); \

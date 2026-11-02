@@ -50,6 +50,7 @@ flowchart LR
 - Docker, kind, kubectl, helm, terraform(`../terraform`이 ArgoCD를 설치한다)
 - kubeseal(0.41.x), jq
 - `.vault/`에는 unseal key와 root token이 들어간다. gitignore되어 있으니 커밋하지 않는다
+- **이 저장소를 fork해서 실습한다.** ArgoCD는 GitHub에서 chart를 가져오는데, chart에 커밋된 SealedSecret은 그것을 봉인한 클러스터의 sealed-secrets 키로만 풀린다. 내 클러스터에서 `make seal`로 다시 봉인한 파일을 내 fork에 push해야 member-api가 배포된다(4단계)
 
 ## 실행
 
@@ -89,15 +90,20 @@ Sealed                  false
 Total Shares            3
 Threshold               2
 Version                 2.2.1
+...
 Storage Type            raft
+...
 HA Enabled              true
+...
 HA Mode                 active
+...
 ```
 
 `vault-0`을 지우면 Raft 데이터가 PVC에 남아 있으므로 초기화 상태는 유지되고, sealed 상태로 다시 뜬다.
 
 ```bash
 kubectl --context kind-argo-cluster -n vault delete pod vault-0
+kubectl --context kind-argo-cluster -n vault wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=120s
 make vault-status | grep -E "Initialized|Sealed"
 make vault-unseal
 ```
@@ -134,9 +140,13 @@ vault setup done
 
 audience 경고는 role에 `audience`를 지정하지 않았다는 안내다. 이 예제는 Pod 기본 ServiceAccount token을 그대로 쓰므로 지정하지 않았다.
 
-Kubernetes auth는 role에 묶인 ServiceAccount의 token으로만 로그인된다.
+Kubernetes auth는 role에 묶인 ServiceAccount의 token으로만 로그인된다. 아직 member-api를 배포하기 전이므로 확인용 namespace와 ServiceAccount를 잠시 만든다.
 
 ```bash
+kubectl --context kind-argo-cluster create namespace member-api
+kubectl --context kind-argo-cluster -n member-api create serviceaccount member-api
+kubectl --context kind-argo-cluster -n member-api create serviceaccount other
+
 JWT=$(kubectl --context kind-argo-cluster -n member-api create token member-api)
 kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- vault write auth/kubernetes/login role=member-api jwt="$JWT"
 ```
@@ -145,29 +155,52 @@ kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- vault write auth
 Key                                       Value
 ---                                       -----
 token                                     hvs.****
+...
 token_duration                            1h
+...
 token_policies                            ["default" "member-api"]
+...
 token_meta_role                           member-api
 token_meta_service_account_name           member-api
 token_meta_service_account_namespace      member-api
+...
 ```
 
 다른 ServiceAccount(`other`)의 token으로 같은 role에 로그인하면 거부된다.
 
+```bash
+JWT=$(kubectl --context kind-argo-cluster -n member-api create token other)
+kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- vault write auth/kubernetes/login role=member-api jwt="$JWT"
 ```
+
+```
+Error writing data to auth/kubernetes/login: Error making API request.
+
+URL: PUT http://127.0.0.1:8200/v1/auth/kubernetes/login
 Code: 403. Errors:
 
 * service account name not authorized
 ```
 
+확인이 끝나면 ServiceAccount를 지운다. member-api ServiceAccount는 4단계에서 chart가 만든다.
+
+```bash
+kubectl --context kind-argo-cluster -n member-api delete serviceaccount member-api other
+```
+
 ### 4. member-api 배포
 
 ```bash
-make seal                                  # API 토큰 봉인(기본값 demo-api-token-v1, .env 의 API_TOKEN 으로 바꿀 수 있다)
-make app-image                             # docker build + kind load
-make app-deploy                            # 기본 REVISION=HEAD. fork 했다면 bootstrap/member-api.yaml 의 repoURL 을 바꾼다
+make seal          # API 토큰을 이 클러스터의 키로 봉인(기본값 demo-api-token-v1, .env 의 API_TOKEN 으로 바꿀 수 있다)
+git add charts/member-api/templates/sealedsecret.yaml && git commit -m "member-api SealedSecret 다시 봉인" && git push
+make app-image     # docker build + kind load
+make app-deploy REPO=https://github.com/<내 계정>/argocd-charts-sample REVISION=<push 한 브랜치>
 kubectl --context kind-argo-cluster -n member-api get jobs,pods
 ```
+
+kind 클러스터를 다시 만들면 sealed-secrets 키도 새로 생기므로 `make seal`부터 다시 한다. 봉인을 다시 하지 않으면 Secret `member-api-config`가 만들어지지 않아 sync가 wave -1에서 멈춘다.
+
+다음은 시나리오를 몇 번 돌린 뒤 sync했을 때의 출력이다.
 
 ```
 NAME                                                    STATUS     COMPLETIONS   DURATION   AGE
@@ -178,17 +211,21 @@ pod/member-api-98c4f487-2fj9w                           2/2     Running     0   
 pod/member-api-init-dek-5e557f8-sync-1793629711-mnmsz   0/1     Completed   0          4s
 ```
 
-DEK Job은 `generateName`이라 sync마다 `member-api-init-dek-<리비전>-sync-<시각>` 이름으로 새로 만들어지고, 끝난 Job은 10분 뒤 지워진다. 처음 배포할 때의 Job 로그와 Pod 구성:
+DEK Job은 `generateName`이라 sync마다 `member-api-init-dek-<리비전>-sync-<시각>` 이름으로 새로 만들어지고, 끝난 Job은 10분 뒤 지워진다. 처음 배포했을 때는 Job 로그에 `DEK v1 created`가 남는다.
+
+```
+DEK v1 created
+```
+
+Pod 구성과 앱 로그:
 
 ```bash
-make init-dek-logs
 kubectl --context kind-argo-cluster -n member-api get pod -l app=member-api \
   -o jsonpath='init=[{.items[0].spec.initContainers[*].name}] containers=[{.items[0].spec.containers[*].name}]'
 kubectl --context kind-argo-cluster -n member-api logs deploy/member-api -c member-api
 ```
 
 ```
-DEK v1 created
 init=[] containers=[member-api vault-agent]
 time=2026-11-02T14:09:07.828Z level=INFO msg=listening addr=:8080 load_mode=async
 time=2026-11-02T14:09:08.998Z level=INFO msg="keyring loaded" attempt=1 dek_version=1
@@ -228,6 +265,7 @@ make app-sync && make init-dek-logs
 ```
 
 ```
+job.batch/member-api-init-dek-5e557f8-sync-1793629183
 DEK already exists, skipped
 ```
 
@@ -247,9 +285,13 @@ kubectl --context kind-argo-cluster -n member-api delete pod -l app=member-api
 t=10s 1/2 Running restarts=0
 t=20s 1/2 Running restarts=1
 t=30s 1/2 Running restarts=2
+t=40s 1/2 Running restarts=2
 t=50s 1/2 Running restarts=3
 t=60s 1/2 CrashLoopBackOff restarts=3
+t=70s 1/2 CrashLoopBackOff restarts=3
+t=80s 1/2 CrashLoopBackOff restarts=3
 t=90s 1/2 Running restarts=4
+t=100s 1/2 CrashLoopBackOff restarts=4
 t=110s 1/2 CrashLoopBackOff restarts=4
 ```
 
@@ -283,6 +325,7 @@ t=30s 2/2 Running restarts=5
 make load-mode MODE=async
 make vault-seal
 kubectl --context kind-argo-cluster -n member-api delete pod -l app=member-api
+make app-port-forward   # port-forward 는 시작할 때의 Pod 에 묶이므로 Pod 를 지운 뒤에는 다시 실행한다
 ```
 
 ```
@@ -314,10 +357,13 @@ level=INFO msg="keyring loaded" attempt=2 dek_version=1
 
 ```bash
 kubectl --context kind-argo-cluster -n vault delete pod vault-0
+kubectl --context kind-argo-cluster -n vault wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=120s
 make vault-status | grep -E "Initialized|Sealed"
 curl -s localhost:8081/members/alice           # Vault 가 sealed 여도 앱은 메모리의 keyring 으로 동작한다
 make vault-unseal
 kubectl --context kind-argo-cluster -n member-api delete pod -l app=member-api
+kubectl --context kind-argo-cluster -n member-api wait --for=condition=Ready pod -l app=member-api --timeout=120s
+make app-port-forward                          # 새 Pod 로 다시 연결한다
 curl -s localhost:8081/members/alice           # 새 Pod 가 같은 KEK·DEK 로 옛 데이터를 읽는다
 ```
 
@@ -353,7 +399,7 @@ Sealed                  false
 No value found at secret/data/demo/after-snapshot
 ```
 
-snapshot 이후에 쓴 값은 사라지고, 그 전에 있던 DEK와 회원 데이터는 그대로다.
+snapshot 이후에 쓴 값은 사라지고, 그 전에 있던 DEK와 회원 데이터는 그대로다. 공식 문서는 복구 뒤 로그에 `post-unseal setup complete`와 `vault is unsealed`가 나온 것을 확인하고 작업을 재개하라고 한다. 이 실습은 같은 클러스터의 snapshot이라 unseal 상태가 유지되어 `post-unseal setup complete`만 다시 기록됐다.
 
 ## 정리
 

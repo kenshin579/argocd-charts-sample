@@ -25,7 +25,7 @@ case "${1:-}" in
     k -n vault cp "$file" vault-0:/tmp/restore.snap > /dev/null
     vault_exec operator raft snapshot restore /tmp/restore.snap
     k -n vault exec vault-0 -- rm -f /tmp/restore.snap
-    echo "restored: $file (Vault 로그에 'post-unseal setup complete' 가 나올 때까지 기다린다)"
+    echo "restored: $file (Vault 로그에서 'post-unseal setup complete', 'vault is unsealed' 를 확인한 뒤 사용한다)"
     ;;
   *)
     echo "usage: snapshot.sh save | restore <file>" >&2

@@ -10,7 +10,19 @@ if [ "$(jq -r .sealed <<<"$status")" = "false" ]; then
   exit 0
 fi
 
-for key in $(jq -r '.unseal_keys_b64[0:2][]' "$INIT_FILE"); do
+if [ ! -f "$INIT_FILE" ]; then
+  echo "error: $INIT_FILE 가 없다. 이 Vault 를 초기화할 때 저장한 unseal key 가 필요하다." >&2
+  exit 1
+fi
+
+keys="$(jq -r '.unseal_keys_b64[0:2][]' "$INIT_FILE")"
+for key in $keys; do
   k -n vault exec vault-0 -- vault operator unseal "$key" > /dev/null
 done
-echo "unsealed: sealed=$(vault_status_json | jq -r .sealed)"
+
+sealed="$(vault_status_json | jq -r .sealed)"
+if [ "$sealed" != "false" ]; then
+  echo "error: unseal 후에도 sealed=$sealed 다. $INIT_FILE 가 이 Vault 의 것인지 확인한다." >&2
+  exit 1
+fi
+echo "unsealed: sealed=false"

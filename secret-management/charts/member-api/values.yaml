@@ -15,7 +15,7 @@ vault:
   agentImage: hashicorp/vault:2.2.1
   # Agent auto-auth 재시도 최대 간격. 기본값(5m)이면 unseal 뒤 최대 5분을 기다린다
   authMaxBackoff: 10s
-  # PreSync Job 이 Agent 없이 직접 접속하는 주소
+  # DEK 적재 Job 이 Agent 없이 직접 접속하는 주소
   serviceAddr: http://vault.vault.svc:8200
 
 persistence:

@@ -4,7 +4,7 @@
 
 KCTX="${KCTX:-kind-argo-cluster}"
 SM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INIT_FILE="$SM_DIR/.vault/init.json"
+INIT_FILE="${INIT_FILE:-$SM_DIR/.vault/init.json}"
 
 require_context() {
   local contexts
