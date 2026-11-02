@@ -1,0 +1,22 @@
+image:
+  repository: member-api
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# sync: keyring 을 받을 때까지 HTTP 서버를 띄우지 않는다 / async: HTTP 를 먼저 띄우고 백그라운드로 받는다
+loadMode: async
+
+# 설정 시크릿(API 토큰)의 출처. 2편은 sealed, 3편에서 vault(VSO)를 추가한다
+secretSource: sealed
+
+vault:
+  role: member-api
+  migrationRole: member-api-migration
+  agentImage: hashicorp/vault:2.2.1
+  # Agent auto-auth 재시도 최대 간격. 기본값(5m)이면 unseal 뒤 최대 5분을 기다린다
+  authMaxBackoff: 10s
+  # DEK 적재 Job 이 Agent 없이 직접 접속하는 주소
+  serviceAddr: http://vault.vault.svc:8200
+
+persistence:
+  size: 1Gi

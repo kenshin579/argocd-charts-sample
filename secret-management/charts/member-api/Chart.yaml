@@ -1,0 +1,6 @@
+apiVersion: v2
+name: member-api
+description: Vault Agent Injector 로 DEK 를 받아 회원 개인정보를 암호화하는 데모 API
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

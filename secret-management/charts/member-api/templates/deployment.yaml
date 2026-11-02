@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-api
+  labels:
+    app: member-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  # RWO PVC 를 쓰므로 새 Pod 는 옛 Pod 가 내려간 뒤에 뜬다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: member-api
+  template:
+    metadata:
+      labels:
+        app: member-api
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .Values.vault.role | quote }}
+        # init container 없이 sidecar 만 둔다. sidecar 는 API proxy(127.0.0.1:8200)로만 쓴다
+        vault.hashicorp.com/agent-pre-populate: "false"
+        vault.hashicorp.com/agent-cache-enable: "true"
+        vault.hashicorp.com/agent-cache-use-auto-auth-token: "true"
+        vault.hashicorp.com/auth-max-backoff: {{ .Values.vault.authMaxBackoff | quote }}
+        vault.hashicorp.com/agent-image: {{ .Values.vault.agentImage | quote }}
+    spec:
+      serviceAccountName: member-api
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: member-api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # injector 는 앱 컨테이너에 VAULT_ADDR 를 넣어 주지 않는다
+            - name: VAULT_ADDR
+              value: http://127.0.0.1:8200
+            - name: LOAD_MODE
+              value: {{ .Values.loadMode | quote }}
+            - name: DATA_PATH
+              value: /data/members.json
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: member-api-config
+                  key: api-token
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: member-api-data

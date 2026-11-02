@@ -1,0 +1,6 @@
+# vault operator init 출력(unseal key, root token)과 snapshot
+.vault/
+# seal.sh 가 읽는 로컬 설정 값
+.env
+# make cluster 가 쓰는 격리된 helm repo 설정과 캐시
+.helm/
