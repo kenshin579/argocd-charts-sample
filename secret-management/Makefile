@@ -3,7 +3,7 @@ KCTX ?= kind-argo-cluster
 export KCTX
 KUBECTL := kubectl --context $(KCTX)
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status
+.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -28,3 +28,6 @@ vault-unseal:
 
 vault-status:
 	./scripts/vault-status.sh
+
+vault-setup:
+	./scripts/vault-setup.sh
