@@ -7,7 +7,7 @@ APP_IMAGE ?= member-api:0.1.0
 REVISION ?= HEAD
 MODE ?= async
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode
+.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -57,3 +57,14 @@ app-port-forward: check-context
 load-mode: check-context
 	$(KUBECTL) -n argocd patch application member-api --type merge \
 	  -p '{"spec":{"source":{"helm":{"parameters":[{"name":"loadMode","value":"$(MODE)"}]}}}}'
+
+## member-api 를 지금 sync 한다(PreSync Job 이 다시 돈다). argocd CLI 없이 Application 에 operation 을 넣는다
+app-sync: check-context
+	$(KUBECTL) -n argocd patch application member-api --type merge \
+	  -p '{"operation":{"initiatedBy":{"username":"make"},"sync":{}}}'
+
+## 가장 최근 PreSync(init-dek) Job 의 로그
+init-dek-logs: check-context
+	@job=$$($(KUBECTL) -n member-api get jobs -l app.kubernetes.io/component=init-dek \
+	  --sort-by=.metadata.creationTimestamp -o name | tail -1); \
+	  echo "$$job"; $(KUBECTL) -n member-api logs "$$job"
