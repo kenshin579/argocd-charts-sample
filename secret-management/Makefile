@@ -7,7 +7,7 @@ APP_IMAGE ?= member-api:0.1.0
 REVISION ?= HEAD
 MODE ?= async
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs
+.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -32,6 +32,17 @@ vault-unseal:
 
 vault-status:
 	./scripts/vault-status.sh
+
+## 데모용 seal (Vault 재시작과 같은 상태로 만든다)
+vault-seal:
+	./scripts/vault-seal.sh
+
+snapshot-save:
+	./scripts/snapshot.sh save
+
+## make snapshot-restore SNAPSHOT=.vault/snapshots/vault-<시각>.snap
+snapshot-restore:
+	./scripts/snapshot.sh restore $(SNAPSHOT)
 
 vault-setup:
 	./scripts/vault-setup.sh
