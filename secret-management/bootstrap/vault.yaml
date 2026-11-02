@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    chart: vault
+    targetRevision: 0.34.1
+    helm:
+      valuesObject:
+        server:
+          image:
+            tag: "2.2.1"
+          dataStorage:
+            size: 1Gi
+          # chart 의 raft 모드를 replica 1 로 쓴다(단일 노드 Integrated Storage)
+          ha:
+            enabled: true
+            replicas: 1
+            raft:
+              enabled: true
+        injector:
+          agentImage:
+            tag: "2.2.1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  # injector 가 실행 중에 webhook caBundle 을 채운다. ArgoCD 가 이를 되돌리지 않게 비교에서 뺀다
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
