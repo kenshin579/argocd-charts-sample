@@ -8,7 +8,7 @@ REPO ?= https://github.com/kenshin579/argocd-charts-sample
 REVISION ?= HEAD
 MODE ?= async
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
+.PHONY: up cluster check-context bootstrap bootstrap-vso vault-config vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -18,12 +18,30 @@ cluster:
 	@printf 'apiVersion: ""\nrepositories: []\n' > .helm/repositories.yaml
 	$(HELM_ISOLATED) $(MAKE) -C ../terraform all
 
+## 처음부터 2편 상태까지: 클러스터 → Vault 설치·init·unseal·setup → 앱 이미지. 이후 seal → commit·push → app-deploy 는 직접 한다
+up: cluster bootstrap
+	$(KUBECTL) -n vault wait --for=create pod/vault-0 --timeout=300s
+	$(KUBECTL) -n vault wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=300s
+	./scripts/vault-init.sh
+	./scripts/vault-unseal.sh
+	./scripts/vault-setup.sh
+	$(MAKE) app-image
+	@echo "다음: make seal → git commit·push → make app-deploy REPO=<fork> REVISION=<브랜치> (README 4단계)"
+
 check-context:
 	@bash -c 'source scripts/lib.sh && require_context'
 
 ## sealed-secrets, Vault Application 적용
 bootstrap: check-context
 	$(KUBECTL) apply -n argocd -f bootstrap/sealed-secrets.yaml -f bootstrap/vault.yaml
+
+## Vault Secrets Operator Application 적용(3편)
+bootstrap-vso: check-context
+	$(KUBECTL) apply -n argocd -f bootstrap/vault-secrets-operator.yaml
+
+## member-api 설정 시크릿을 Vault KV 에 쓴다(3편)
+vault-config:
+	./scripts/vault-config.sh
 
 vault-init:
 	./scripts/vault-init.sh
