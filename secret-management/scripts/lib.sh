@@ -32,3 +32,18 @@ vault_status_json() {
 root_token() {
   jq -r .root_token "$INIT_FILE"
 }
+
+# member-api 설정 시크릿 값. 명령줄 환경 변수 API_TOKEN 이 있으면 그것을 쓰고, 없으면 .env, 그것도 없으면 기본값.
+resolve_api_token() {
+  local cli="${API_TOKEN:-}"
+  if [ -z "$cli" ] && [ -f "$SM_DIR/.env" ]; then
+    # shellcheck disable=SC1091
+    cli="$(set -a; source "$SM_DIR/.env"; echo "${API_TOKEN:-}")"
+  fi
+  echo "${cli:-demo-api-token-v1}"
+}
+
+# 값을 직접 보이지 않고 비교하기 위한 sha256 앞 12자리
+sha12() {
+  printf '%s' "$1" | shasum -a 256 | cut -c1-12
+}

@@ -6,10 +6,7 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_context
 
-if [ -f "$SM_DIR/.env" ]; then
-  # shellcheck disable=SC1091
-  source "$SM_DIR/.env"
-fi
-API_TOKEN="${API_TOKEN:-demo-api-token-v1}"
+API_TOKEN="$(resolve_api_token)"
 
 VAULT_TOKEN="$(root_token)" vault_exec kv put secret/member-api/config api-token="$API_TOKEN"
+echo "api-token sha256=$(sha12 "$API_TOKEN")"

@@ -7,9 +7,8 @@ APP_IMAGE ?= member-api:0.1.0
 REPO ?= https://github.com/kenshin579/argocd-charts-sample
 REVISION ?= HEAD
 MODE ?= async
-SOURCE ?= sealed
 
-.PHONY: up cluster check-context bootstrap bootstrap-vso vault-config vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode secret-source app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
+.PHONY: up cluster check-context bootstrap bootstrap-vso vault-config vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode secret-source config-check app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -91,9 +90,13 @@ app-port-forward: check-context
 load-mode:
 	./scripts/set-param.sh loadMode $(MODE)
 
-## 설정 시크릿 출처 전환 (SOURCE=sealed|vault, 3편)
+## 설정 시크릿 출처 전환 (SOURCE=sealed|vault, 3편). 기본값 없이 반드시 지정한다
 secret-source:
-	./scripts/set-param.sh secretSource $(SOURCE)
+	./scripts/secret-source.sh $(SOURCE)
+
+## Secret 과 Vault 의 api-token 이 같은지 sha256 으로 비교(3편)
+config-check:
+	./scripts/config-check.sh
 
 ## member-api 를 지금 sync 한다(DEK 적재 Job 이 다시 돈다). argocd CLI 없이 Application 에 operation 을 넣는다
 app-sync: check-context

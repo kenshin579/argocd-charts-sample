@@ -1,0 +1,4 @@
+{{- /* secretSource 오타면 SealedSecret 도 VSO 리소스도 렌더되지 않아 Secret 이 사라진다. 렌더 단계에서 막는다 */ -}}
+{{- if not (has .Values.secretSource (list "sealed" "vault")) }}
+{{- fail (printf "secretSource must be \"sealed\" or \"vault\", got %q" (toString .Values.secretSource)) }}
+{{- end }}
