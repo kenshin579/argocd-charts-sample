@@ -8,7 +8,7 @@ REPO ?= https://github.com/kenshin579/argocd-charts-sample
 REVISION ?= HEAD
 MODE ?= async
 
-.PHONY: cluster check-context bootstrap vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
+.PHONY: up cluster check-context bootstrap bootstrap-vso vault-config vault-init vault-unseal vault-status vault-setup app-image seal app-deploy app-port-forward load-mode secret-source config-check app-sync init-dek-logs vault-seal snapshot-save snapshot-restore
 
 ## kind 클러스터와 ArgoCD 설치 (../terraform)
 ## 로컬 helm repo 설정에 접속 안 되는 repo 가 있으면 terraform helm provider 가 실패하므로 빈 설정으로 실행한다
@@ -18,12 +18,30 @@ cluster:
 	@printf 'apiVersion: ""\nrepositories: []\n' > .helm/repositories.yaml
 	$(HELM_ISOLATED) $(MAKE) -C ../terraform all
 
+## 처음부터 2편 상태까지: 클러스터 → Vault 설치·init·unseal·setup → 앱 이미지. 이후 seal → commit·push → app-deploy 는 직접 한다
+up: cluster bootstrap
+	$(KUBECTL) -n vault wait --for=create pod/vault-0 --timeout=300s
+	$(KUBECTL) -n vault wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=300s
+	./scripts/vault-init.sh
+	./scripts/vault-unseal.sh
+	./scripts/vault-setup.sh
+	$(MAKE) app-image
+	@echo "다음: make seal → git commit·push → make app-deploy REPO=<fork> REVISION=<브랜치> (README 4단계)"
+
 check-context:
 	@bash -c 'source scripts/lib.sh && require_context'
 
 ## sealed-secrets, Vault Application 적용
 bootstrap: check-context
 	$(KUBECTL) apply -n argocd -f bootstrap/sealed-secrets.yaml -f bootstrap/vault.yaml
+
+## Vault Secrets Operator Application 적용(3편)
+bootstrap-vso: check-context
+	$(KUBECTL) apply -n argocd -f bootstrap/vault-secrets-operator.yaml
+
+## member-api 설정 시크릿을 Vault KV 에 쓴다(3편)
+vault-config:
+	./scripts/vault-config.sh
 
 vault-init:
 	./scripts/vault-init.sh
@@ -69,9 +87,16 @@ app-port-forward: check-context
 	$(KUBECTL) -n member-api port-forward svc/member-api 8081:80
 
 ## LOAD_MODE 전환 (MODE=sync|async). git 을 바꾸지 않고 Application 의 helm parameter 로 덮어쓴다
-load-mode: check-context
-	$(KUBECTL) -n argocd patch application member-api --type merge \
-	  -p '{"spec":{"source":{"helm":{"parameters":[{"name":"loadMode","value":"$(MODE)"}]}}}}'
+load-mode:
+	./scripts/set-param.sh loadMode $(MODE)
+
+## 설정 시크릿 출처 전환 (SOURCE=sealed|vault, 3편). 기본값 없이 반드시 지정한다
+secret-source:
+	./scripts/secret-source.sh $(SOURCE)
+
+## Secret 과 Vault 의 api-token 이 같은지 sha256 으로 비교(3편)
+config-check:
+	./scripts/config-check.sh
 
 ## member-api 를 지금 sync 한다(DEK 적재 Job 이 다시 돈다). argocd CLI 없이 Application 에 operation 을 넣는다
 app-sync: check-context
