@@ -52,6 +52,10 @@ spec:
     create: true
     # 기존 Secret 을 넘겨받는다. ownerReference·label·annotation 을 VSO 것으로 바꾼다
     overwrite: true
+    transformation:
+      # VSO 는 기본으로 KV 응답 전체(버전 등 metadata 포함)를 _raw 키에 넣는다.
+      # 그러면 같은 값을 다시 kv put 해도 버전만 바뀌어 "변경"으로 보고 재시작한다. 앱은 api-token 만 읽으므로 뺀다
+      excludeRaw: true
   # 값이 바뀌면 Deployment 를 재시작해 새 env 를 읽게 한다(첫 동기화 때는 재시작하지 않는다)
   rolloutRestartTargets:
     - kind: Deployment
