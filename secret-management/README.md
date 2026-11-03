@@ -6,6 +6,7 @@ kind + ArgoCD 위에 HashiCorp Vault를 운영과 비슷하게 구성하고(Raft
 - **설정 시크릿**(API 토큰): SealedSecret이 만든 K8s Secret을 env로 받는다
 - **앱의 Vault 접근**: Pod의 `vault-agent` sidecar가 Kubernetes auth로 로그인하고, 앱은 `http://127.0.0.1:8200`으로 token 없이 호출한다
 - **DEK 적재**: ArgoCD Sync hook Job이 migration ServiceAccount로 Kubernetes auth에 직접 로그인해서 한다
+- **3편**: 설정 시크릿을 SealedSecret에서 Vault Secrets Operator(VSO)로 옮긴다. Vault KV `secret/member-api/config`를 같은 이름의 Secret `member-api-config`로 동기화하므로 Deployment는 바뀌지 않는다(9단계부터)
 
 ```mermaid
 flowchart LR
@@ -33,15 +34,17 @@ flowchart LR
 
 | 경로 | 내용 |
 |---|---|
-| `bootstrap/` | ArgoCD Application: `sealed-secrets`(chart 2.22.0), `vault`(chart 0.34.1, raft replica 1, `hashicorp/vault:2.2.1`), `member-api` |
+| `bootstrap/` | ArgoCD Application: `sealed-secrets`(chart 2.22.0), `vault`(chart 0.34.1, raft replica 1, `hashicorp/vault:2.2.1`), `member-api`, `vault-secrets-operator`(chart 1.6.2, 3편) |
 | `scripts/vault-init.sh` | `vault operator init -key-shares=3 -key-threshold=2` → `.vault/init.json`. 이미 초기화돼 있으면 아무것도 쓰지 않는다 |
 | `scripts/vault-unseal.sh` | `.vault/init.json`의 unseal key 2개로 unseal |
 | `scripts/vault-setup.sh` | kv-v2, Transit, KEK, policy 2개, Kubernetes auth와 role 2개, file audit(stdout). 다시 실행해도 결과가 같다 |
 | `scripts/seal.sh` | API 토큰을 kubeseal로 봉인해 `charts/member-api/templates/sealedsecret.yaml`에 쓴다 |
 | `scripts/snapshot.sh` | Raft snapshot 저장(`.vault/snapshots/`)과 복구 |
-| `charts/member-api/` | SA 2개·SealedSecret(wave -1) → DEK Job(Sync hook, wave 0) → Deployment·Service·PVC(wave 1) |
+| `scripts/vault-config.sh` | 설정 시크릿(API 토큰)을 Vault KV `secret/member-api/config`에 쓴다(3편) |
+| `scripts/set-param.sh` | member-api Application의 helm parameter 하나만 바꾼다(`load-mode`, `secret-source`가 쓴다) |
+| `charts/member-api/` | SA 2개·SealedSecret(wave -1) → DEK Job(Sync hook, wave 0) → Deployment·Service·PVC(wave 1). `secretSource: vault`면 SealedSecret 대신 VSO 리소스(wave -2·-1) |
 | `app/member-api/` | Go 앱. `serve`(HTTP), `init-dek`(DEK 적재) |
-| `vault/policies/` | `member-api`(DEK 읽기, unwrap), `member-api-migration`(DEK 발급·적재) |
+| `vault/policies/` | `member-api`(DEK 읽기, unwrap), `member-api-migration`(DEK 발급·적재), `vso-member-api`(설정 시크릿 읽기, 3편) |
 
 모든 kubectl·helm·kubeseal 명령은 `--context kind-argo-cluster`로만 보낸다. 그 context가 없으면 스크립트는 아무 명령도 보내지 않고 끝난다.
 
@@ -401,6 +404,202 @@ No value found at secret/data/demo/after-snapshot
 
 snapshot 이후에 쓴 값은 사라지고, 그 전에 있던 DEK와 회원 데이터는 그대로다. 공식 문서는 복구 뒤 로그에 `post-unseal setup complete`와 `vault is unsealed`가 나온 것을 확인하고 작업을 재개하라고 한다. 이 실습은 같은 클러스터의 snapshot이라 unseal 상태가 유지되어 `post-unseal setup complete`만 다시 기록됐다.
 
+## 3편: SealedSecret에서 Vault Secrets Operator로
+
+### 9. VSO 설치와 Vault 준비
+
+```bash
+make bootstrap-vso    # vault-secrets-operator Application
+make vault-setup      # policy·role vso-member-api 추가
+make vault-config     # API 토큰을 secret/member-api/config 에 쓴다(기본 demo-api-token-v1, .env 의 API_TOKEN)
+kubectl --context kind-argo-cluster -n vault-secrets-operator-system get pods
+```
+
+```
+======== Secret Path ========
+secret/data/member-api/config
+...
+version            1
+
+NAME                                                         READY   STATUS    RESTARTS   AGE
+vault-secrets-operator-controller-manager-66b974986f-fsn6p   2/2     Running   0          16s
+```
+
+VSO Application에는 `ServerSideApply=true`를 쓰지 않는다. ArgoCD v2.14.11은 SSA로 비교할 때 Kubernetes 1.37 Deployment의 새 status 필드(`.status.terminatingReplicas`)를 몰라서 `ComparisonError`(sync 상태 `Unknown`)가 난다.
+
+`vso-member-api` role은 설정 시크릿만 읽을 수 있다.
+
+확인용 SA로 로그인해 받은 token(`VSO_TOKEN`)으로 읽어 본 결과:
+
+```
+{"policies":["default","vso-member-api"],"ttl":3600,"sa":"vso-member-api"}
+$ kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- env VAULT_TOKEN=$VSO_TOKEN vault kv get -field=api-token secret/member-api/config
+demo-api-token-v1
+$ kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- env VAULT_TOKEN=$VSO_TOKEN vault kv get secret/member-api/dek
+Code: 403. Errors:
+	* permission denied
+```
+
+### 10. 왜 바로 바꾸면 안 되는가
+
+SealedSecret이 만든 Secret에는 SealedSecret을 가리키는 ownerReference가 있다.
+
+```bash
+kubectl --context kind-argo-cluster -n member-api get secret member-api-config -o json \
+  | jq -c '{uid: .metadata.uid, ownerReferences: [.metadata.ownerReferences[]? | {kind, name, controller}]}'
+```
+
+```
+{"uid":"0d8a0a0a-392e-4306-a941-7f591a79e753","ownerReferences":[{"kind":"SealedSecret","name":"member-api-config","controller":true}]}
+```
+
+그래서 SealedSecret을 지우면 Kubernetes GC가 Secret도 지운다. 별도 namespace에서 확인한 결과:
+
+```
+$ kubectl --context kind-argo-cluster -n sealed-demo get secret demo-config -o jsonpath="{.metadata.ownerReferences[0].kind} controller={.metadata.ownerReferences[0].controller}"
+SealedSecret controller=true
+$ kubectl --context kind-argo-cluster -n sealed-demo delete sealedsecret demo-config
+sealedsecret.bitnami.com "demo-config" deleted from sealed-demo namespace
+$ kubectl --context kind-argo-cluster -n sealed-demo get secret demo-config
+Error from server (NotFound): secrets "demo-config" not found
+```
+
+`secretSource`를 바로 `vault`로 바꾸면 ArgoCD가 SealedSecret을 prune하면서 Secret이 지워질 수 있다. 그래서 두 단계로 옮긴다.
+
+### 11. 1단계: 소유 관계 끊기
+
+```bash
+SKIP_OWNER_REFS=1 make seal     # sealedsecrets.bitnami.com/skip-set-owner-references: "true" 로 봉인
+git add charts/member-api/templates/sealedsecret.yaml && git commit -m "..." && git push
+make app-sync
+```
+
+```
+{"uid":"0d8a0a0a-392e-4306-a941-7f591a79e753","resourceVersion":"12230","ownerReferences":[],"managedBy":null}
+```
+
+uid는 그대로이고 ownerReference만 사라졌다. 이제 SealedSecret을 지워도 Secret은 남는다.
+
+### 12. 2단계: VSO로 전환
+
+```bash
+make secret-source SOURCE=vault
+kubectl --context kind-argo-cluster -n member-api get sealedsecret,vaultstaticsecret
+```
+
+```
+NAME                                                        SYNCED   HEALTHY   READY   AGE
+vaultstaticsecret.secrets.hashicorp.com/member-api-config   True     True      True    14s
+```
+
+```
+{"uid":"0d8a0a0a-392e-4306-a941-7f591a79e753","resourceVersion":"12345","ownerReferences":[{"kind":"VaultStaticSecret","name":"member-api-config","controller":null}],"managedBy":"hashicorp-vso"}
+{"api_token":"de****","length":17}
+NAME                        READY   STATUS    RESTARTS   AGE
+member-api-98c4f487-2fj9w   2/2     Running   0          79m
+```
+
+SealedSecret은 prune됐고, VaultStaticSecret이 `destination.overwrite: true`로 **같은 Secret(uid 그대로)**을 넘겨받았다. 앱 Pod는 재시작하지 않았다. 이후 2분 동안 Secret의 `resourceVersion`은 `12345`에서 바뀌지 않았고, sealed-secrets controller 로그에도 이 Secret에 대한 기록이 없었다.
+
+VaultConnection·VaultAuth는 VaultStaticSecret보다 앞 wave(-2)에 둔다. 같은 wave에 두었을 때는 VaultStaticSecret이 먼저 처리되어 `VaultConnection.secrets.hashicorp.com "vault" not found` 경고가 한 번 났다.
+
+### 13. 값 변경과 재시작
+
+VaultStaticSecret은 `refreshAfter`(30s)마다 KV를 다시 읽고, 값이 바뀌었을 때만 Secret을 갱신하고 Deployment를 재시작한다(`rolloutRestartTargets`).
+
+```bash
+ROOT_TOKEN=$(jq -r .root_token .vault/init.json)
+vkv() { kubectl --context kind-argo-cluster -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault kv "$@"; }
+vkv put secret/member-api/config api-token=demo-api-token-v2-rotated   # 지금 값과 같은 값
+# 70초 뒤
+vkv put secret/member-api/config api-token=demo-api-token-v3           # 다른 값
+make app-port-forward   # 재시작으로 Pod 가 바뀌었으므로 다시 연결한다
+```
+
+```
+t=0s restartedAt=2026-11-03T07:57:40Z secretRV=116541 keys=api-token pod=member-api-74fd874c58-tdnhg
+version            4
+t=70s restartedAt=2026-11-03T07:57:40Z secretRV=116541 keys=api-token pod=member-api-74fd874c58-tdnhg
+
+version            5
+t=10s restartedAt=2026-11-03T07:59:46Z secretRV=116880 keys=api-token pod=member-api-57978f9cbb-5pwr6
+...
+$ curl -s localhost:8081/config
+{"api_token":"de****","length":17}
+```
+
+`destination.transformation.excludeRaw: true`를 켠 이유가 있다. VSO는 기본으로 KV 응답 전체를 Secret의 `_raw` 키에 넣는데, 여기에 KV의 버전 정보가 들어 있다. 그래서 켜기 전에는 **같은 값을 다시 `kv put`해도 버전만 바뀌어 Deployment가 재시작됐다.**
+
+```
+$ kubectl --context kind-argo-cluster -n member-api get secret member-api-config -o json | jq -r '.data | keys | join(", ")'
+_raw, api-token
+$ kubectl --context kind-argo-cluster -n member-api get secret member-api-config -o jsonpath='{.data._raw}' | base64 -d | jq -c '{keys, metadata, data_keys: (.data|keys)}'
+{"keys":["data","metadata"],"metadata":{"created_time":"2026-11-03T07:54:52.774009293Z","custom_metadata":null,"deletion_time":"","destroyed":false,"version":3},"data_keys":["api-token"]}
+```
+
+### 14. Vault 장애
+
+```bash
+make vault-seal
+# 60초 뒤
+kubectl --context kind-argo-cluster -n member-api get vaultstaticsecret member-api-config -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}'
+kubectl --context kind-argo-cluster -n member-api get secret member-api-config
+make vault-unseal
+```
+
+```
+RolloutRestart=True SecretSynced=False Healthy=False Ready=False
+Warning   VaultClientError          vaultstaticsecret/member-api-config   Failed to read Vault secret: Error making API request....
+NAME                TYPE     DATA   AGE
+member-api-config   Opaque   1      17h
+{"api_token":"de****","length":17}
+Synced/Healthy                                  # ArgoCD 의 member-api 상태
+unsealed: sealed=false
+RolloutRestart=True SecretSynced=True Healthy=True Ready=True     # unseal 5초 뒤
+```
+
+Vault가 sealed여도 VSO는 Secret을 지우지 않고 마지막 값을 둔다. ArgoCD v2.14.11에는 VaultStaticSecret health check가 없어서, 동기화가 실패하는 동안에도 Application은 `Synced/Healthy`로 보인다.
+
+### 15. 롤백
+
+SealedSecret에는 봉인할 때의 값이 들어 있다. 되돌리기 전에 **지금 값으로 다시 봉인**하지 않으면 옛 값으로 돌아간다.
+
+```bash
+API_TOKEN=demo-api-token-v3 SKIP_OWNER_REFS=1 make seal && git commit ... && git push
+make secret-source SOURCE=sealed
+```
+
+1초 간격으로 본 Secret 상태:
+
+```
+t=1s uid=0d8a0a0a owner=VaultStaticSecret managedBy=hashicorp-vso | sealedsecret=0 vss=1
+t=2s Secret 없음 | sealedsecret=0 vss=0
+t=5s uid=dbe2b3d5 owner= managedBy=- | sealedsecret=1 vss=0
+```
+
+VaultStaticSecret이 prune되면서 그것이 소유한 Secret이 GC로 지워졌고, 약 3초 뒤 sealed-secrets가 새로 만들었다(uid가 바뀜). 실행 중인 Pod는 env를 이미 읽었으므로 영향이 없었지만, 그 몇 초 사이에 새로 뜨는 Pod는 Secret을 찾지 못한다. 다시 `make secret-source SOURCE=vault`로 바꾸면 VSO가 새 Secret(uid `dbe2b3d5`)을 넘겨받는다.
+
+### 16. audit log: 누가 무엇을 읽었나
+
+```bash
+kubectl --context kind-argo-cluster -n vault logs vault-0 --since=30m | grep '^{' \
+  | jq -r 'select(.type=="request" and (.request.path|test("^secret/data/member-api/(config|dek)$"))) | "\(.request.path) \(.auth.display_name) \(.request.headers["user-agent"][0])"' \
+  | sort | uniq -c
+```
+
+```
+  64 secret/data/member-api/config kubernetes-member-api-vso-member-api vso/1.6.2
+   3 secret/data/member-api/config root Go-http-client/1.1
+   3 secret/data/member-api/dek kubernetes-member-api-member-api Vault Agent API Proxy/2.2.1 (+https://www.vaultproject.io/; go1.27.3); Go-http-client/1.1
+   2 secret/data/member-api/dek kubernetes-member-api-member-api-migration Go-http-client/1.1
+```
+
+- 설정 시크릿은 VSO가 `vso-member-api` SA로 30초마다 읽는다(30분에 64회)
+- DEK는 앱이 Agent proxy를 거쳐 `member-api` SA로, DEK 적재 Job이 `member-api-migration` SA로 읽는다
+- `root`는 `kv put`을 한 관리자다
+
+SealedSecret은 클러스터 안에서 풀리므로, 누가 언제 값을 읽었는지가 Vault에 남지 않는다.
+
 ## 정리
 
 ```bash
@@ -414,4 +613,6 @@ rm -rf .vault .helm
 - **auto-unseal**: 클라우드 KMS 등이 필요하다. 이 예제는 Shamir 수동 unseal이다
 - **TLS**: chart 기본값(`tls_disable = 1`)을 그대로 썼다. 운영에서는 필수다
 - **root token 회수**: 실습 편의상 `.vault/init.json`에 남겨 둔다. 운영에서는 초기 설정 후 revoke한다
-- **설정 시크릿의 Vault 이전(VSO)**: 시리즈 3편에서 다룬다
+- **VaultStaticSecret health check**: ArgoCD v2.14.11에는 내장 health check가 없다. 필요하면 `resource.customizations.health.secrets.hashicorp.com_VaultStaticSecret`로 직접 추가한다
+- **instant update**: VSO의 이벤트 기반 즉시 갱신은 Vault Enterprise 기능이다. 이 예제는 `refreshAfter` 주기 갱신만 쓴다
+- **동적 시크릿(VaultDynamicSecret)**: 다루지 않는다
